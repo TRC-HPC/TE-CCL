@@ -12,6 +12,8 @@ from teccl.input_data import *
 from teccl.solvers.base_formulation import BaseFormulation
 from teccl.topologies.topology import Topology
 
+from ortools.linear_solver import pywraplp
+from teccl.solvers.converter import convert_gurobi_to_ortools
 
 class AllGatherFormulation(BaseFormulation):
     def __init__(self, user_input: UserInputParams, topology: Topology) -> None:
@@ -399,7 +401,7 @@ class AllGatherFormulation(BaseFormulation):
 
     def encode_problem(self, use_one_less_epoch: bool = False, previous_buffers: List[List[int]] = []) -> int:
         setup_start = time.time()
-        self.model = gp.Model('AllGather_MILP')
+        #self.model = gp.Model('AllGather_MILP')
         self.initialize_variables()
         self.destination_constraints()
         self.node_constraints(previous_buffers)
@@ -437,9 +439,16 @@ class AllGatherFormulation(BaseFormulation):
             self.model.update()
             self.model.read(self.user_input.instance.warmstart)
 
+        converted_model = convert_gurobi_to_ortools(self.model)
+
+        self.model.dispose()
+        self.model = converted_model
+        
+        # now self.model is an ORTOOLS model
         solve_start = time.time()
-        self.model.optimize()
+        self.model.Solve()
         solve_end = time.time()
+
         logging.debug(
             f'Finished model optimization {log_file} in {solve_end - solve_start} ')
 
