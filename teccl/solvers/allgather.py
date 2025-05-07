@@ -446,17 +446,17 @@ class AllGatherFormulation(BaseFormulation):
         
         # now self.model is an ORTOOLS model
         solve_start = time.time()
-        self.model.Solve()
+        status = self.model.Solve()
         solve_end = time.time()
 
         logging.debug(
             f'Finished model optimization {log_file} in {solve_end - solve_start} ')
 
-        if self.model.Status != GRB.OPTIMAL:
+        if status != pywraplp.solver.OPTIMAL:
             logging.warning(
-                f"Not_Optimal_{self.solver_name}_Status-{self.model.Status}_{self.user_input.topology.name}_"
+                f"Not_Optimal_{self.solver_name}_Status-{status}_{self.user_input.topology.name}_"
                 f"{self.num_nodes}-nodes_{self.num_chunks}-chunks_{self.num_epochs}-epochs_{self.epoch_duration}-epochduration")
-            if self.user_input.instance.debug and self.model.SolCount > 0:
+            if self.user_input.instance.debug and status == pywraplp.Solver.FEASIBLE:
                 logging.debug(
                     f"Epoch at the end of which all demands are satisfied: {self.find_demand_satisfied_k() + 1}")
                 # self.model.write(log_file + '.sol')
@@ -471,7 +471,7 @@ class AllGatherFormulation(BaseFormulation):
             # self.model.write(log_file + '.sol')
             logging.debug(
                 f"Epoch at the end of which all demands are satisfied: {self.find_demand_satisfied_k() + 1}")
-        return self.model.Status
+        return status
 
     def get_flows_buffer_demand(self) -> Tuple[List[Tuple[int, int, int, int, int]], Dict[Tuple[int, int, int], int], Dict[Tuple[int, int, int], int], int]:
         """
