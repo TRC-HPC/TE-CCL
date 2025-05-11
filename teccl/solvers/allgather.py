@@ -401,7 +401,7 @@ class AllGatherFormulation(BaseFormulation):
 
     def encode_problem(self, use_one_less_epoch: bool = False, previous_buffers: List[List[int]] = []) -> int:
         setup_start = time.time()
-        #self.model = gp.Model('AllGather_MILP')
+        self.model = gp.Model('AllGather_MILP')
         self.initialize_variables()
         self.destination_constraints()
         self.node_constraints(previous_buffers)
@@ -432,8 +432,8 @@ class AllGatherFormulation(BaseFormulation):
         logging.debug(f'Starting model optimization {log_file}')
 
         # warm start option
-        # self.model.update()
-        # error = self.model.read("<path to .sol file>")
+        self.model.update()
+        #error = self.model.read("<path to .sol file>")
 
         if self.user_input.instance.warmstart and self.user_input.instance.solution_method == SolutionMethod.ONE_SHOT:
             self.model.update()
@@ -441,7 +441,7 @@ class AllGatherFormulation(BaseFormulation):
 
         converted_model = convert_gurobi_to_ortools(self.model)
 
-        self.model.dispose()
+        #self.model.dispose()
         self.model = converted_model
         
         # now self.model is an ORTOOLS model
@@ -481,17 +481,17 @@ class AllGatherFormulation(BaseFormulation):
         demand_met_epoch = {}
         list_of_sends = []
         buffers = {}
-        for v in self.model.getVars():
+        for v in self.model.variables():
             # Gurobi is not setting flows to be perfectly zero, so we check to ensure it is over 0.9.
-            if 'flow' in v.varName and v.x > 0.9:
-                if 'future' in v.varName:
+            if 'flow' in v.name() and v.solution_value() > 0.9:
+                if 'future' in v.name():
                     continue
-                components = v.varName.split('_')
+                components = v.name().split('_')
                 _, s_t, i, j, c, k = components
                 list_of_sends.append(
                     (int(s_t), int(i), int(j), int(c), int(k)))
-            if 'total_demand_' in v.varName and v.x > 0.9:
-                components = v.varName.split('_')
+            if 'total_demand_' in v.name() and v.solution_value() > 0.9:
+                components = v.name().split('_')
                 _, _, s, i, c, k = components
                 s, i, c = int(s), int(i), int(c)
                 if (s, i, c) in demand_met_epoch:
@@ -499,10 +499,10 @@ class AllGatherFormulation(BaseFormulation):
                         demand_met_epoch[(s, i, c)] = int(k)
                 else:
                     demand_met_epoch[(s, i, c)] = int(k)
-            if 'buffer_' in v.varName and v.x > 0.9:
-                if 'buffer_ahead_' in v.varName:
+            if 'buffer_' in v.name() and v.solution_value() > 0.9:
+                if 'buffer_ahead_' in v.name():
                     continue
-                components = v.varName.split('_')
+                components = v.name().split('_')
                 _, s, i, c, k = components
                 s, i, c = int(s), int(i), int(c)
                 if (s, i, c) in buffers:
@@ -663,7 +663,7 @@ class AllGatherFormulation(BaseFormulation):
 
     def find_demand_satisfied_k(self):
         satisfied_epochs = {}
-        for v in [self.model.LookupVariable(i) for i in range(self.model.NumVariables())]:
+        for v in self.model.variables():
             if 'total_demand_' in v.name() and v.solution_value() > 0.0:
                 components = v.name().split('_')
                 _, _, s, i, c, k = components
