@@ -446,17 +446,17 @@ class AllGatherFormulation(BaseFormulation):
         
         # now self.model is an ORTOOLS model
         solve_start = time.time()
-        status = self.model.Solve()
+        self.status = self.model.Solve()
         solve_end = time.time()
 
         logging.debug(
             f'Finished model optimization {log_file} in {solve_end - solve_start} ')
 
-        if status != pywraplp.solver.OPTIMAL:
+        if self.status != pywraplp.Solver.OPTIMAL:
             logging.warning(
-                f"Not_Optimal_{self.solver_name}_Status-{status}_{self.user_input.topology.name}_"
+                f"Not_Optimal_{self.solver_name}_Status-{self.status}_{self.user_input.topology.name}_"
                 f"{self.num_nodes}-nodes_{self.num_chunks}-chunks_{self.num_epochs}-epochs_{self.epoch_duration}-epochduration")
-            if self.user_input.instance.debug and status == pywraplp.Solver.FEASIBLE:
+            if self.user_input.instance.debug and self.status == pywraplp.Solver.FEASIBLE:
                 logging.debug(
                     f"Epoch at the end of which all demands are satisfied: {self.find_demand_satisfied_k() + 1}")
                 # self.model.write(log_file + '.sol')
@@ -465,13 +465,13 @@ class AllGatherFormulation(BaseFormulation):
             # else:
             #     self.model.computeIIS()
             #     self.model.write(log_file + '_unsat.ilp')
-            return self.model.Status
+            return self.status
 
         if self.user_input.instance.debug:
             # self.model.write(log_file + '.sol')
             logging.debug(
                 f"Epoch at the end of which all demands are satisfied: {self.find_demand_satisfied_k() + 1}")
-        return status
+        return self.status
 
     def get_flows_buffer_demand(self) -> Tuple[List[Tuple[int, int, int, int, int]], Dict[Tuple[int, int, int], int], Dict[Tuple[int, int, int], int], int]:
         """
@@ -663,9 +663,9 @@ class AllGatherFormulation(BaseFormulation):
 
     def find_demand_satisfied_k(self):
         satisfied_epochs = {}
-        for v in self.model.getVars():
-            if 'total_demand_' in v.varName and v.x > 0.0:
-                components = v.varName.split('_')
+        for v in [self.model.LookupVariable(i) for i in range(self.model.NumVariables())]:
+            if 'total_demand_' in v.name() and v.solution_value() > 0.0:
+                components = v.name().split('_')
                 _, _, s, i, c, k = components
                 if (s, i, c) in satisfied_epochs:
                     if satisfied_epochs[(s, i, c)] > int(k):
@@ -680,7 +680,7 @@ class AllGatherFormulation(BaseFormulation):
         return max(satisfied_epochs.values())
 
     def get_schedule(self) -> Tuple[List[Tuple[int, int, int, int, int]], Dict]:
-        if self.model.SolCount > 0:
+        if self.status == pywraplp.Solver.OPTIMAL or self.status == self.status.pywraplp.Solver.FEASIBLE:
             if not self.required_flows:
                 self.required_flows, self.flows_str_info = self.dfs_remove_unnecessary_flows(
                     astar=False)

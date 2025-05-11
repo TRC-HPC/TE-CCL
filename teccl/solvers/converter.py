@@ -17,12 +17,16 @@ def convert_gurobi_to_ortools(gurobi_model):
     for v in gurobi_model.getVars():
         if v.vtype == GRB.CONTINUOUS:
             ortools_var = solver.NumVar(v.lb, v.ub, v.VarName)
-        else:  # Integer or Binary
+        elif v.vtype == GRB.INTEGER:  # Integer or Binary
             ortools_var = solver.IntVar(v.lb, v.ub, v.VarName)
+        else:
+            ortools_var = solver.NewBoolVar(v.lb,v.ub,v.VarName)
         ortools_vars[v.VarName] = ortools_var
+    
 
     # Convert constraints
     for c in gurobi_model.getConstrs():
+        assert False
         expr = sum(gurobi_model.getCoeff(c, v) * ortools_vars[v.VarName] for v in gurobi_model.getVars())
         if c.Sense == GRB.LESS_EQUAL:
             solver.Add(expr <= c.RHS)
