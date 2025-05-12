@@ -3,9 +3,12 @@ from ortools.linear_solver import pywraplp
 import gurobipy as gp
 from gurobipy import GRB
 
-def SOS1(_vars,solver, M):
+
+M = 1000
+
+def SOS1(_vars,solver):
     
-    bools = [solver.BoolVar(name = "b") for i in range(len(_vars))]
+    bools = [solver.NumVar(0,1,name = "b") for i in range(len(_vars))]
     
     for var,_bool in zip(_vars,bools):
         solver.Add(var <= M * _bool)
@@ -28,6 +31,7 @@ def convert_gurobi_to_ortools(gurobi_model):
         elif v.vtype == GRB.INTEGER:  # Integer or Binary
             ortools_var = solver.IntVar(v.lb, v.ub, v.VarName)
         else:
+            assert False
             ortools_var = solver.NewBoolVar(v.lb,v.ub,v.VarName)
         ortools_vars[v.VarName] = ortools_var
     
@@ -42,7 +46,7 @@ def convert_gurobi_to_ortools(gurobi_model):
         row_vars = [row.getVar(i) for i in range(row.size())]
         row_coeffs = [row.getCoeff(i) for i in range(row.size())]
         expr = sum(coeff * ortools_vars[varToName[var]] for var,coeff in zip(row_vars,row_coeffs))
-        print("aaaaaaaaa",row_coeffs)
+        #print("aaaaaaaaa",row_coeffs)
         
         #print(indices)
         #expr = sum(ortools_vars[varToName[var]] * coeff for v,name in zip_vars)
@@ -55,32 +59,33 @@ def convert_gurobi_to_ortools(gurobi_model):
     
     for c in gurobi_model.getGenConstrs():
         if c.GenConstrType == gp.GRB.GENCONSTR_MAX:   
-            var, operands, M= gurobi_model.getGenConstrMax(c)
-            M = 10000
+            var, operands, _= gurobi_model.getGenConstrMax(c)
+
+            
             var = ortools_vars[var.VarName]
             operands = [ortools_vars[v.VarName] for v in operands]
 
-            S = [solver.NumVar(0,solver.infinity(), name = "n") for _ in range(len(operands))]
-            B = [solver.BoolVar(name = "b")]
+            S = [solver.NumVar(0,M-1, name = "n") for _ in range(len(operands))]
+            B = [solver.NumVar(0,1,name = "b")]
 
             for s,b in zip(S,B):
-                SOS1([s,b],solver,M)
+                SOS1([s,b],solver)
 
             for i in range(len(operands)):
                 solver.Add(var == operands[i] + S[i])
 
             solver.Add(solver.Sum(B) == 1)
         if c.GenConstrType == gp.GRB.GENCONSTR_MIN:   
-            var, operands, M= gurobi_model.getGenConstrMin(c)
-            M = 10000
+            var, operands, _= gurobi_model.getGenConstrMin(c)
+
             var = ortools_vars[var.VarName]
             operands = [ortools_vars[v.VarName] for v in operands]
 
-            S = [solver.NumVar(0,solver.infinity(), name = "n") for _ in range(len(operands))]
-            B = [solver.BoolVar(name = "b")]
+            S = [solver.NumVar(0,M-1, name = "n") for _ in range(len(operands))]
+            B = [solver.NumVar(0,1,name = "b")]
 
             for s,b in zip(S,B):
-                SOS1([s,b],solver,M)
+                SOS1([s,b],solver)
 
             for i in range(len(operands)):
                 solver.Add(var == operands[i] - S[i])
@@ -102,6 +107,7 @@ def convert_gurobi_to_ortools(gurobi_model):
 # gurobi_model = gp.read("example_model.mps")  # Load a Gurobi model
 # ortools_solver = convert_gurobi_to_ortools(gurobi_model)
 if __name__ == "__main__":
+
     g = gp.Model()
     x = g.addVar(0,10,vtype = GRB.CONTINUOUS, name = "X")
     y = g.addVar(0,10,vtype = GRB.CONTINUOUS, name = "y")

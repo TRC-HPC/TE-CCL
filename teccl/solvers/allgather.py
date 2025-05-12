@@ -440,8 +440,18 @@ class AllGatherFormulation(BaseFormulation):
             self.model.read(self.user_input.instance.warmstart)
 
         converted_model = convert_gurobi_to_ortools(self.model)
-
-        #self.model.dispose()
+        
+        self.model.optimize()
+        st = self.model.status
+        self.model.dispose()
+        #self.model.optimize()
+        #if self.model.Status == GRB.OPTIMAL or self.model.Status == GRB.FEASIBLE:
+        #    assert False
+        
+        
+        logging.debug("Finished model conversion")
+        
+        
         self.model = converted_model
         
         # now self.model is an ORTOOLS model
@@ -449,6 +459,12 @@ class AllGatherFormulation(BaseFormulation):
         self.status = self.model.Solve()
         solve_end = time.time()
 
+        assert self.status != pywraplp.Solver.INFEASIBLE or st == GRB.INFEASIBLE
+        assert self.status == pywraplp.Solver.INFEASIBLE or st != GRB.INFEASIBLE
+        #if(self.status != pywraplp.Solver.OPTIMAL or st == GRB.OPTIMAL)
+        #assert self.status != pywraplp.Solver.FEASIBLE or st == GRB.FEASIBLE
+
+    
         logging.debug(
             f'Finished model optimization {log_file} in {solve_end - solve_start} ')
 
@@ -680,7 +696,7 @@ class AllGatherFormulation(BaseFormulation):
         return max(satisfied_epochs.values())
 
     def get_schedule(self) -> Tuple[List[Tuple[int, int, int, int, int]], Dict]:
-        if self.status == pywraplp.Solver.OPTIMAL or self.status == self.status.pywraplp.Solver.FEASIBLE:
+        if self.status == pywraplp.Solver.OPTIMAL or self.status == pywraplp.Solver.FEASIBLE:
             if not self.required_flows:
                 self.required_flows, self.flows_str_info = self.dfs_remove_unnecessary_flows(
                     astar=False)

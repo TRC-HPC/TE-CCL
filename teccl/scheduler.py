@@ -19,6 +19,7 @@ from teccl.topologies.amd import AMD
 from teccl.topologies.mesh import Mesh
 from teccl.topologies.topology import Topology
 
+from ortools.linear_solver import pywraplp
 
 class TECCLSolver(object):
     def __init__(self, user_input: UserInputParams):
@@ -81,6 +82,8 @@ class TECCLSolver(object):
 
         while lower_bound <= upper_bound:
             mid = (upper_bound + lower_bound) / 2
+            #print("AAAAAAAAAAAAAAAAAAAAAAAAAA ", mid)
+            
             new_user_input = copy.deepcopy(user_input)
             new_user_input.gurobi = copy.deepcopy(user_input.gurobi)
             new_user_input.instance = copy.deepcopy(user_input.instance)
@@ -93,7 +96,7 @@ class TECCLSolver(object):
             # user_input.instance.debug = True
             solver_inst = self.get_solver(new_user_input, topology_obj)
             result = solver_inst.encode_problem()
-            if result != GRB.INFEASIBLE:
+            if result != pywraplp.Solver.INFEASIBLE:
                 epochs_taken = solver_inst.find_demand_satisfied_k() + 1
                 time_taken = epochs_taken * solver_inst.epoch_duration
                 upper_bound = time_taken
