@@ -18,6 +18,7 @@ from teccl.topologies.ndv2 import NDv2
 from teccl.topologies.amd import AMD
 from teccl.topologies.mesh import Mesh
 from teccl.topologies.topology import Topology
+from teccl.topologies.A2 import A2
 
 from ortools.linear_solver import pywraplp
 
@@ -39,6 +40,8 @@ class TECCLSolver(object):
             return AMD(topology_params)
         elif topology_params.name == "Mesh":
             return Mesh(topology_params)
+        elif topology_params.name == "A2":
+            return A2(topology_params)
         else:
             raise NotImplementedError(
                 f"Input topology {topology_params.name} not implemented")
@@ -96,7 +99,8 @@ class TECCLSolver(object):
             # user_input.instance.debug = True
             solver_inst = self.get_solver(new_user_input, topology_obj)
             result = solver_inst.encode_problem()
-            if result != pywraplp.Solver.INFEASIBLE:
+            if result != pywraplp.Solver.INFEASIBLE and result != pywraplp.Solver.NOT_SOLVED:
+                print(result,pywraplp.Solver.FEASIBLE,pywraplp.Solver.OPTIMAL,pywraplp.Solver.ABNORMAL)
                 epochs_taken = solver_inst.find_demand_satisfied_k() + 1
                 time_taken = epochs_taken * solver_inst.epoch_duration
                 upper_bound = time_taken

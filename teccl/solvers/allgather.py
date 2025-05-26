@@ -14,6 +14,9 @@ from teccl.topologies.topology import Topology
 
 from ortools.linear_solver import pywraplp
 from teccl.solvers.converter import convert_gurobi_to_ortools
+import cProfile
+
+
 
 class AllGatherFormulation(BaseFormulation):
     def __init__(self, user_input: UserInputParams, topology: Topology) -> None:
@@ -30,8 +33,9 @@ class AllGatherFormulation(BaseFormulation):
         """
         logging.debug(f'Initializing flow variables')
         time_start = time.time()
-        self.flow = np.zeros((self.num_nodes, self.num_nodes,
-                              self.num_nodes, self.num_chunks, self.num_epochs)).tolist()
+        print(self.num_nodes,self.num_chunks,self.num_epochs)
+        self.flow = np.zeros((self.num_nodes, self.num_nodes, \
+            self.num_nodes, self.num_chunks, self.num_epochs),dtype = object)
 
         for i, j, in product(self.nodes, self.nodes):
             if self.topology.capacity[i][j] <= 0:
@@ -434,14 +438,16 @@ class AllGatherFormulation(BaseFormulation):
         # warm start option
         self.model.update()
         #error = self.model.read("<path to .sol file>")
-
+        print("b1")
         if self.user_input.instance.warmstart and self.user_input.instance.solution_method == SolutionMethod.ONE_SHOT:
             self.model.update()
             self.model.read(self.user_input.instance.warmstart)
-
-        converted_model = convert_gurobi_to_ortools(self.model)
         
+        print("b2")
+        converted_model = convert_gurobi_to_ortools(self.model,self.user_input.gurobi)
+        print("b5")
         self.model.optimize()
+        print("b6")
         st = self.model.status
         self.model.dispose()
         #self.model.optimize()
@@ -456,11 +462,14 @@ class AllGatherFormulation(BaseFormulation):
         
         # now self.model is an ORTOOLS model
         solve_start = time.time()
+        print("b7")
         self.status = self.model.Solve()
+        print("b8")
         solve_end = time.time()
 
         assert self.status != pywraplp.Solver.INFEASIBLE or st == GRB.INFEASIBLE
         assert self.status == pywraplp.Solver.INFEASIBLE or st != GRB.INFEASIBLE
+        assert self.status != pywraplp.Solver.ABNORMAL
         #if(self.status != pywraplp.Solver.OPTIMAL or st == GRB.OPTIMAL)
         #assert self.status != pywraplp.Solver.FEASIBLE or st == GRB.FEASIBLE
 
@@ -688,11 +697,11 @@ class AllGatherFormulation(BaseFormulation):
                         satisfied_epochs[(s, i, c)] = int(k)
                 else:
                     satisfied_epochs[(s, i, c)] = int(k)
-        for s, i, c in product(self.nodes, self.nodes, self.chunks):
-            if self.demand[s][i][c]:
-                if (str(s), str(i), str(c)) not in satisfied_epochs:
-                    logging.warning(
-                        f"Demand not satisfied for s_{s}, i_{i}, c_{c}")
+        #for s, i, c in product(self.nodes, self.nodes, self.chunks):
+        #    if self.demand[s][i][c]:
+        #        if (str(s), str(i), str(c)) not in satisfied_epochs:
+        #            logging.warning(
+        #                f"Demand not satisfied for s_{s}, i_{i}, c_{c}")
         return max(satisfied_epochs.values())
 
     def get_schedule(self) -> Tuple[List[Tuple[int, int, int, int, int]], Dict]:

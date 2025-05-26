@@ -2,8 +2,9 @@
 from ortools.linear_solver import pywraplp
 import gurobipy as gp
 from gurobipy import GRB
-
-
+import numpy as np
+import cProfile
+import pstats
 M = 1000
 
 def SOS1(_vars,solver):
@@ -17,14 +18,21 @@ def SOS1(_vars,solver):
 
 
 
-def convert_gurobi_to_ortools(gurobi_model):
+def convert_gurobi_to_ortools_2(gurobi_model, params):
     """Converts a Gurobi MILP model to an OR-Tools model."""
     # Initialize OR-Tools solver
     solver = pywraplp.Solver.CreateSolver('SCIP')
+
+    print(f'Time limit is {params.time_limit}')
+    solver.SetTimeLimit(1000 * params.time_limit)
+
     #solver = cp_model.CpModel()
     # Mapping of Gurobi variables to OR-Tools variables
     ortools_vars = {}
     # Convert variables
+    
+
+    print("b3")
     for v in gurobi_model.getVars():
         if v.vtype == GRB.CONTINUOUS:
             ortools_var = solver.NumVar(v.lb, v.ub, v.VarName)
@@ -35,7 +43,7 @@ def convert_gurobi_to_ortools(gurobi_model):
             ortools_var = solver.NewBoolVar(v.lb,v.ub,v.VarName)
         ortools_vars[v.VarName] = ortools_var
     
-    
+    print("b4")
     _vars = gurobi_model.getVars()
     names = gurobi_model.getAttr("VarName",_vars)
     varToName = {var:name for var,name in zip(_vars,names)}
@@ -46,17 +54,14 @@ def convert_gurobi_to_ortools(gurobi_model):
         row_vars = [row.getVar(i) for i in range(row.size())]
         row_coeffs = [row.getCoeff(i) for i in range(row.size())]
         expr = sum(coeff * ortools_vars[varToName[var]] for var,coeff in zip(row_vars,row_coeffs))
-        #print("aaaaaaaaa",row_coeffs)
-        
-        #print(indices)
-        #expr = sum(ortools_vars[varToName[var]] * coeff for v,name in zip_vars)
+
         if c.Sense == GRB.LESS_EQUAL:
             solver.Add(expr <= c.RHS)
         elif c.Sense == GRB.GREATER_EQUAL:
             solver.Add(expr >= c.RHS)
         elif c.Sense == GRB.EQUAL:
             solver.Add(expr == c.RHS)
-    
+    print("B4")
     for c in gurobi_model.getGenConstrs():
         if c.GenConstrType == gp.GRB.GENCONSTR_MAX:   
             var, operands, _= gurobi_model.getGenConstrMax(c)
@@ -100,13 +105,15 @@ def convert_gurobi_to_ortools(gurobi_model):
         solver.Minimize(ortools_obj_expr)
     else:
         solver.Maximize(ortools_obj_expr)
-
+    
     return solver
 
 # Example usage
 # gurobi_model = gp.read("example_model.mps")  # Load a Gurobi model
 # ortools_solver = convert_gurobi_to_ortools(gurobi_model)
 if __name__ == "__main__":
+    t = np.zeros((261,261,261,1,12)).tolist()
+
 
     g = gp.Model()
     x = g.addVar(0,10,vtype = GRB.CONTINUOUS, name = "X")
@@ -130,3 +137,15 @@ if __name__ == "__main__":
     ortools.Solve()
     for variable in ortools.variables():
         print(variable.name,variable.solution_value()) 
+
+def convert_gurobi_to_ortools(gurobi_model, params):
+    profiler = cProfile.Profile()
+    profiler.enable()
+
+    try:
+        convert_gurobi_to_ortools_2(gurobi_model,params)
+    finally:
+        profiler.disable()
+        stats = pstats.Stats(profiler)
+        stats.sort_stats('cumulative')
+        stats.print_stats()
